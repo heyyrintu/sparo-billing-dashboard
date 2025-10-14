@@ -1,0 +1,44 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://spario:spario123@postgres:5432/spario_dashboard
+      - NEXTAUTH_SECRET=your-secret-key-change-in-production
+      - NEXTAUTH_URL=http://localhost:3000
+      - ADMIN_EMAIL=admin@spario.com
+      - ADMIN_PASSWORD=admin123
+    volumes:
+      - uploads_data:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=spario_dashboard
+      - POSTGRES_USER=spario
+      - POSTGRES_PASSWORD=spario123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spario -d spario_dashboard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  uploads_data:

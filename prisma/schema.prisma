@@ -1,0 +1,92 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model OutboundFact {
+  id              String    @id @default(cuid())
+  invoiceNo       String
+  invoiceDate     DateTime
+  dispatchedDate  DateTime?
+  partyName       String?
+  invoiceQty      Decimal
+  boxes           Decimal
+  grossTotal      Decimal
+  sourceFile      String
+  sourceChecksum  String
+  createdAt       DateTime  @default(now())
+
+  @@unique([invoiceNo, invoiceDate], name: "invoiceNo_invoiceDate")
+  @@map("outbound_fact")
+}
+
+model InboundFact {
+  id             String   @id @default(cuid())
+  receivedDate   DateTime
+  partyName      String?
+  invoiceQty     Decimal
+  boxes          Decimal
+  type           String?
+  articleNo      String?
+  sourceFile     String
+  sourceChecksum String
+  createdAt      DateTime @default(now())
+
+  @@map("inbound_fact")
+}
+
+model DailySummary {
+  day            DateTime @id
+  outboundInvoices Int
+  outboundQty    Decimal
+  outboundBoxes  Decimal
+  grossSale      Decimal
+  inboundQty     Decimal
+  inboundBoxes   Decimal
+  createdAt      DateTime @default(now())
+
+  @@map("daily_summary")
+}
+
+model MonthlyRevenue {
+  month           DateTime @id
+  grossSale       Decimal
+  revenueMarginal Decimal
+  revenueFlat     Decimal
+  calcMode        String   @default("marginal")
+  lastRecalcAt    DateTime @default(now())
+
+  @@map("monthly_revenue")
+}
+
+model UploadLog {
+  id         String   @id @default(cuid())
+  filename   String
+  fileType   String   // "INBOUND" or "OUTBOUND"
+  uploadedBy String
+  rowCount   Int
+  checksum   String
+  status     String   // "SUCCESS" or "FAILED"
+  message    String?
+  createdAt  DateTime @default(now())
+
+  @@map("upload_log")
+}
