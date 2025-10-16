@@ -42,8 +42,8 @@ cp env.example .env.local
 DATABASE_URL="postgresql://username:password@localhost:5432/spario_dashboard"
 NEXTAUTH_SECRET="your-secret-key-here"
 NEXTAUTH_URL="http://localhost:3000"
-ADMIN_EMAIL="admin@spario.com"
-ADMIN_PASSWORD="admin123"
+ADMIN_EMAIL="admin@dronalogitech.cloud"
+ADMIN_PASSWORD="drona@12345"
 ```
 
 ### Docker Deployment (Recommended)
@@ -94,8 +94,8 @@ npm run dev
 
 ## Default Credentials
 
-- **Email**: admin@spario.com
-- **Password**: admin123
+- **Email**: admin@dronalogitech.cloud
+- **Password**: drona@12345
 
 ## Excel File Format
 

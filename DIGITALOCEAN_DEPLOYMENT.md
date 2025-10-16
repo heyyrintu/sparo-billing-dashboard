@@ -343,8 +343,8 @@ https://your-app-name.ondigitalocean.app/auth/signin
 ```
 
 With:
-- Email: `drona_admin@spario.com`
-- Password: `<your-password>`
+- Email: `admin@dronalogitech.cloud`
+- Password: `drona@12345`
 
 ---
 

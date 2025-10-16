@@ -10,7 +10,7 @@
     "DATABASE_URL": "@database_url",
     "NEXTAUTH_SECRET": "@nextauth_secret",
     "NEXTAUTH_URL": "@nextauth_url",
-    "ADMIN_EMAIL": "drona_admin@spario.com",
+    "ADMIN_EMAIL": "admin@dronalogitech.cloud",
     "ADMIN_PASSWORD": "@admin_password"
   },
   "build": {
