@@ -1,7 +1,10 @@
 # Multi-stage build for production
-FROM node:18-alpine AS builder
+FROM node:18-slim AS builder
 
 WORKDIR /app
+
+# Install OpenSSL and other dependencies needed for Prisma
+RUN apt-get update && apt-get install -y openssl libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
 COPY package*.json ./
@@ -20,16 +23,16 @@ RUN npx prisma generate
 RUN npm run build
 
 # Production stage
-FROM node:18-alpine AS runner
+FROM node:18-slim AS runner
 
 WORKDIR /app
 
-# Install OpenSSL 1.1 compatibility for Prisma (Alpine 3.17+ uses OpenSSL 3 by default)
-RUN apk add --no-cache openssl1.1-compat
+# Install OpenSSL for Prisma and curl for healthcheck
+RUN apt-get update && apt-get install -y openssl ca-certificates curl && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+# Create non-root user (Debian syntax)
+RUN groupadd --system --gid 1001 nodejs && \
+    useradd --system --uid 1001 --gid nodejs nextjs
 
 # Copy built application
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
