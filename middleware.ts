@@ -7,6 +7,10 @@ export default withAuth(
   {
     callbacks: {
       authorized: ({ token, req }) => {
+        // Global kill switch to disable auth (set DISABLE_AUTH=true)
+        if (process.env.DISABLE_AUTH === 'true') {
+          return true
+        }
         // Allow access to auth pages and health check
         if (req.nextUrl.pathname.startsWith('/auth') || 
             req.nextUrl.pathname === '/api/healthz' ||

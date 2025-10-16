@@ -13,6 +13,8 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
   const router = useRouter()
 
   useEffect(() => {
+    // Bypass auth entirely if flag is set
+    if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') return
     if (status === 'loading') return // Still loading
     
     if (!session) {
@@ -26,6 +28,10 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
       </div>
     )
+  }
+
+  if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') {
+    return <>{children}</>
   }
 
   if (!session) {
