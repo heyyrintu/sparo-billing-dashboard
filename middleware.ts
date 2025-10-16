@@ -9,7 +9,8 @@ export default withAuth(
       authorized: ({ token, req }) => {
         // Allow access to auth pages and health check
         if (req.nextUrl.pathname.startsWith('/auth') || 
-            req.nextUrl.pathname === '/api/healthz') {
+            req.nextUrl.pathname === '/api/healthz' ||
+            req.nextUrl.pathname === '/api/admin/ensure') {
           return true
         }
         
