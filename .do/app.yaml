@@ -1,0 +1,72 @@
+name: spario-billing-dashboard
+region: nyc
+
+databases:
+  - name: spario-db
+    engine: PG
+    version: "15"
+    size: basic-xs
+    num_nodes: 1
+
+services:
+  - name: web
+    github:
+      repo: heyyrintu/sparo-billing-dashboard
+      branch: main
+      deploy_on_push: true
+    
+    dockerfile_path: Dockerfile
+    
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    
+    http_port: 3000
+    
+    health_check:
+      http_path: /api/healthz
+      initial_delay_seconds: 60
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3
+    
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        type: SECRET
+        value: ${spario-db.DATABASE_URL}
+      
+      - key: NEXTAUTH_SECRET
+        scope: RUN_AND_BUILD_TIME
+        type: SECRET
+        # Generate with: openssl rand -base64 32
+      
+      - key: NEXTAUTH_URL
+        scope: RUN_TIME
+        value: ${APP_URL}
+      
+      - key: ADMIN_EMAIL
+        scope: RUN_TIME
+        value: admin@dronalogitech.cloud
+      
+      - key: ADMIN_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+        value: drona@12345
+      
+      - key: NODE_ENV
+        scope: RUN_TIME
+        value: production
+      
+      - key: PORT
+        scope: RUN_TIME
+        value: "3000"
+    
+    routes:
+      - path: /
+    
+    run_command: ./docker-entrypoint.sh
+
+alerts:
+  - rule: DEPLOYMENT_FAILED
+  - rule: DOMAIN_FAILED

@@ -26,8 +26,8 @@
      DATABASE_URL=postgresql://your-neon-connection-string
      NEXTAUTH_SECRET=generate-a-random-32-character-string
      NEXTAUTH_URL=https://your-app-name.vercel.app
-     ADMIN_EMAIL=drona_admin@spario.com
-     ADMIN_PASSWORD=admin123
+     ADMIN_EMAIL=admin@dronalogitech.cloud
+     ADMIN_PASSWORD=drona@12345
      ```
    - Click "Deploy"
 
@@ -117,8 +117,8 @@
    DATABASE_URL=postgresql://spario:CHANGE_THIS_PASSWORD@postgres:5432/spario_dashboard
    NEXTAUTH_SECRET=GENERATE_A_STRONG_SECRET_HERE
    NEXTAUTH_URL=http://your-server-ip:3000
-   ADMIN_EMAIL=drona_admin@spario.com
-   ADMIN_PASSWORD=CHANGE_THIS_PASSWORD
+   ADMIN_EMAIL=admin@dronalogitech.cloud
+   ADMIN_PASSWORD=drona@12345
    ```
 
 6. **Update docker-compose.yml for production**:
@@ -160,8 +160,8 @@
    DATABASE_URL=internal-postgres-connection-string
    NEXTAUTH_SECRET=generate-random-string
    NEXTAUTH_URL=https://your-app.onrender.com
-   ADMIN_EMAIL=drona_admin@spario.com
-   ADMIN_PASSWORD=admin123
+   ADMIN_EMAIL=admin@dronalogitech.cloud
+   ADMIN_PASSWORD=drona@12345
    ```
 7. Deploy
 
@@ -202,8 +202,8 @@ NEXTAUTH_URL=https://your-domain.com
 
 ### Optional Variables:
 ```bash
-ADMIN_EMAIL=drona_admin@spario.com
-ADMIN_PASSWORD=admin123
+ADMIN_EMAIL=admin@dronalogitech.cloud
+ADMIN_PASSWORD=drona@12345
 MAX_FILE_SIZE=10485760
 UPLOAD_DIR=/data/uploads
 RATE_LIMIT_MAX=10

@@ -17,8 +17,8 @@ Your Spario Billing Dashboard is now running in Docker containers.
 
 ## Default Credentials
 
-- **Email**: drona_admin@spario.com
-- **Password**: admin123
+- **Email**: admin@dronalogitech.cloud
+- **Password**: drona@12345
 
 ## Docker Commands
 

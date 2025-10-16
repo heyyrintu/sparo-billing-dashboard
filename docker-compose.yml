@@ -7,8 +7,8 @@ services:
       - DATABASE_URL=postgresql://spario:spario123@postgres:5432/spario_dashboard
       - NEXTAUTH_SECRET=your-secret-key-change-in-production
       - NEXTAUTH_URL=http://localhost:3000
-      - ADMIN_EMAIL=drona_admin@spario.com
-      - ADMIN_PASSWORD=admin123
+      - ADMIN_EMAIL=admin@dronalogitech.cloud
+      - ADMIN_PASSWORD=drona@12345
     volumes:
       - uploads_data:/data/uploads
     depends_on:

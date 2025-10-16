@@ -5,8 +5,8 @@ const prisma = new PrismaClient()
 
 async function main() {
   // Create admin user from environment variables or defaults
-  const adminEmail = process.env.ADMIN_EMAIL || 'drona_admin@spario.com'
-  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
+  const adminEmail = process.env.ADMIN_EMAIL || 'admin@dronalogitech.cloud'
+  const adminPassword = process.env.ADMIN_PASSWORD || 'drona@12345'
   
   const hashedPassword = await bcrypt.hash(adminPassword, 10)
   
