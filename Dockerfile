@@ -24,8 +24,8 @@ FROM node:18-alpine AS runner
 
 WORKDIR /app
 
-# Install OpenSSL for Prisma
-RUN apk add --no-cache openssl
+# Install OpenSSL 1.1 compatibility for Prisma (Alpine 3.17+ uses OpenSSL 3 by default)
+RUN apk add --no-cache openssl1.1-compat
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
