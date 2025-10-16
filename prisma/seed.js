@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcrypt'
+const { PrismaClient } = require('@prisma/client')
+const bcrypt = require('bcrypt')
 
 const prisma = new PrismaClient()
 
@@ -7,6 +7,8 @@ async function main() {
   // Create admin user from environment variables or defaults
   const adminEmail = process.env.ADMIN_EMAIL || 'drona_admin@spario.com'
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
+  
+  console.log(`Creating admin user: ${adminEmail}`)
   
   const hashedPassword = await bcrypt.hash(adminPassword, 10)
   

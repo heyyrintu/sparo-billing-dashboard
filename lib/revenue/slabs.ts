@@ -1,6 +1,6 @@
 export interface RevenueSlab {
   min: number // in crores
-  max: number // in crores (null for last slab)
+  max: number | null // in crores (null for last slab)
   rate: number // percentage
 }
 

@@ -26,21 +26,19 @@ export async function GET(
       return NextResponse.json({ error: 'Upload not found' }, { status: 404 })
     }
 
-    // Construct file path
-    const filePath = join(process.cwd(), upload.sourceFile)
-    
-    try {
-      const fileBuffer = await readFile(filePath)
-      
-      return new NextResponse(fileBuffer, {
-        headers: {
-          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': `attachment; filename="${upload.filename}"`,
-        },
-      })
-    } catch (fileError) {
-      return NextResponse.json({ error: 'File not found on disk' }, { status: 404 })
-    }
+    // Note: sourceFile field not in schema - files are not persisted after upload
+    // Return metadata about the upload instead
+    return NextResponse.json({
+      error: 'File download not available - files are processed and not stored',
+      upload: {
+        filename: upload.filename,
+        fileType: upload.fileType,
+        uploadedBy: upload.uploadedBy,
+        rowCount: upload.rowCount,
+        status: upload.status,
+        createdAt: upload.createdAt
+      }
+    }, { status: 404 })
 
   } catch (error) {
     console.error('Download API error:', error)

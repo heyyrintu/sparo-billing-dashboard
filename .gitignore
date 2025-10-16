@@ -39,9 +39,15 @@ next-env.d.ts
 # database
 /prisma/dev.db
 /prisma/dev.db-journal
+*.db
+*.db-journal
 
 # uploaded files
 /data/
+
+# Docker
+docker-compose.override.yml
+.dockerignore
 
 # IDE
 .vscode/
@@ -61,3 +67,6 @@ reset-data.js
 # Logs
 logs
 *.log
+
+# Prisma
+/prisma/seed.js

@@ -19,8 +19,9 @@ export const InboundRowSchema = z.object({
   articleNo: z.string().optional(),
 })
 
+// Note: File class only exists in browser, so we check if it's available
 export const UploadRequestSchema = z.object({
-  file: z.instanceof(File, 'File is required'),
+  file: typeof File !== 'undefined' ? z.instanceof(File, { message: 'File is required' }) : z.any(),
   fileType: z.enum(['inbound', 'outbound']),
 })
 
