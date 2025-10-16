@@ -1,12 +1,22 @@
 #!/bin/sh
 set -e
 
-echo "Initializing database schema..."
-node node_modules/prisma/build/index.js db push --accept-data-loss --skip-generate || echo "Schema push failed, trying migrate deploy..."
-node node_modules/prisma/build/index.js migrate deploy || echo "Migration failed, continuing..."
+echo "🔄 Waiting for database to be ready..."
+sleep 5
 
-echo "Seeding database..."
-node node_modules/prisma/build/index.js db seed || echo "Seed already run or failed, continuing..."
+echo "📋 Running database migrations..."
+if node node_modules/prisma/build/index.js migrate deploy; then
+    echo "✅ Migrations completed successfully"
+else
+    echo "⚠️  Migrations failed or already applied, continuing..."
+fi
 
-echo "Starting application..."
+echo "🌱 Seeding database with admin user..."
+if node prisma/seed.js; then
+    echo "✅ Database seeded successfully"
+else
+    echo "⚠️  Seeding failed or admin user already exists"
+fi
+
+echo "🚀 Starting application..."
 exec node server.js
