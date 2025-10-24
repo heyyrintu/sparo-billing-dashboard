@@ -9,6 +9,8 @@ services:
       - NEXTAUTH_URL=http://localhost:3000
       - ADMIN_EMAIL=admin@dronalogitech.cloud
       - ADMIN_PASSWORD=drona@12345
+      - DISABLE_AUTH=true
+      - NEXT_PUBLIC_DISABLE_AUTH=true
     volumes:
       - uploads_data:/data/uploads
     depends_on:

@@ -2,7 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 interface AuthWrapperProps {
   children: React.ReactNode
@@ -11,9 +11,24 @@ interface AuthWrapperProps {
 export function AuthWrapper({ children }: AuthWrapperProps) {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [runtimeDisable, setRuntimeDisable] = useState(false)
 
   useEffect(() => {
-    // Bypass auth entirely if flag is set
+    // First check server runtime flag (allows toggling without rebuilding client)
+    ;(async () => {
+      try {
+        const res = await fetch('/api/config')
+        const json = await res.json()
+        if (json?.disableAuth) {
+          setRuntimeDisable(true)
+          return
+        }
+      } catch (e) {
+        // ignore
+      }
+    })()
+
+    // Bypass auth entirely if client-side env flag is set
     if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') return
     if (status === 'loading') return // Still loading
     
@@ -30,7 +45,7 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
     )
   }
 
-  if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true') {
+  if (process.env.NEXT_PUBLIC_DISABLE_AUTH === 'true' || runtimeDisable) {
     return <>{children}</>
   }
 
