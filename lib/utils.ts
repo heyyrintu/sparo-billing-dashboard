@@ -18,6 +18,14 @@ export function formatIndianNumber(amount: number): string {
   return new Intl.NumberFormat('en-IN').format(amount)
 }
 
+export function formatCrores(amount: number): string {
+  const crores = amount / 10000000
+  return new Intl.NumberFormat('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(crores) + ' CR'
+}
+
 export function calculateDelta(current: number, previous: number): {
   absolute: number
   percentage: number
@@ -95,20 +103,69 @@ export function coerceDate(value: any): Date | null {
 }
 
 export function coerceNumber(value: any): number | null {
+  // Handle empty values
   if (value === null || value === undefined || value === '') return null
   
+  // Handle string values
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (trimmed === '' || trimmed === '-' || trimmed.toLowerCase() === 'na' || trimmed.toLowerCase() === 'n/a') {
+      return null
+    }
+    
+    // Remove currency symbols, commas, spaces
+    const cleaned = trimmed
+      .replace(/[₹$,]/g, '') // Remove currency symbols and commas
+      .replace(/\s/g, '') // Remove spaces
+      .replace(/\(/g, '-') // Handle negative in parentheses: (100) -> -100
+      .replace(/\)/g, '')
+    
+    // Try to parse
+    const num = Number(cleaned)
+    if (!isNaN(num)) {
+      return num
+    }
+    
+    // Try to extract number from text like "100 units" or "Rs. 100"
+    const numberMatch = cleaned.match(/[-]?\d+\.?\d*/)
+    if (numberMatch) {
+      return Number(numberMatch[0])
+    }
+    
+    // If still can't parse, return null
+    return null
+  }
+  
+  // Handle number values
+  if (typeof value === 'number') {
+    return isNaN(value) ? null : value
+  }
+  
+  // Handle boolean (convert to 1 or 0)
+  if (typeof value === 'boolean') {
+    return value ? 1 : 0
+  }
+  
+  // Handle Excel errors (like #N/A, #VALUE!, etc.)
+  if (typeof value === 'string' && value.startsWith('#')) {
+    return null
+  }
+  
+  // Try direct conversion
   const num = Number(value)
   return isNaN(num) ? null : num
 }
 
 export function isBlankRow(row: Record<string, any>): boolean {
-  return Object.values(row).every(value => 
-    value === null || 
-    value === undefined || 
-    value === '' || 
-    (typeof value === 'string' && value.trim() === '') ||
-    (typeof value === 'number' && isNaN(value))
-  )
+  const values = Object.values(row)
+  // Consider row blank only if all values are truly empty
+  return values.length === 0 || values.every(value => {
+    if (value === null || value === undefined) return true
+    if (value === '') return true
+    if (typeof value === 'string' && value.trim() === '') return true
+    if (typeof value === 'number' && isNaN(value)) return true
+    return false
+  })
 }
 
 export function hasRequiredFields(row: Record<string, any>, requiredFields: string[]): boolean {

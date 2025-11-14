@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { PrismaClient } from '@prisma/client'
 import { KPIParamsSchema } from '@/lib/parser/validation'
 import { calculateDelta, getPreviousPeriodDates } from '@/lib/utils'
@@ -11,12 +9,7 @@ const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {
   try {
-    const session = process.env.DISABLE_AUTH === 'true'
-      ? ({ user: { id: 'dev-user' } } as any)
-      : await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Authentication removed - allow all requests
 
     const { searchParams } = new URL(request.url)
     const params = KPIParamsSchema.parse({
@@ -26,7 +19,11 @@ export async function GET(request: NextRequest) {
     })
 
     const fromDate = new Date(params.from)
+    // Subtract 1 day from fromDate
+    fromDate.setDate(fromDate.getDate() - 1)
     const toDate = new Date(params.to)
+    // Set toDate to end of day to include all data on that date
+    toDate.setHours(23, 59, 59, 999)
     
     // Get current period data
     const currentData = await prisma.dailySummary.findMany({

@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { PrismaClient } from '@prisma/client'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
@@ -12,12 +10,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = process.env.DISABLE_AUTH === 'true'
-      ? ({ user: { id: 'dev-user' } } as any)
-      : await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Authentication removed - allow all requests
 
     const upload = await prisma.uploadLog.findUnique({
       where: { id: params.id }

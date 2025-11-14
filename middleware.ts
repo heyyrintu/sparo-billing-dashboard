@@ -1,32 +1,56 @@
-import { withAuth } from 'next-auth/middleware'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-export default withAuth(
-  function middleware(req) {
-    // Add any additional middleware logic here
-  },
-  {
-    callbacks: {
-      authorized: ({ token, req }) => {
-        // Global kill switch to disable auth (set DISABLE_AUTH=true)
-        if (process.env.DISABLE_AUTH === 'true') {
-          return true
-        }
-        // Allow access to auth pages and health check
-        if (req.nextUrl.pathname.startsWith('/auth') || 
-            req.nextUrl.pathname === '/api/healthz' ||
-            req.nextUrl.pathname === '/api/admin/ensure') {
-          return true
-        }
-        
-        // Require authentication for all other routes
-        return !!token
-      },
-    },
+export function middleware(request: NextRequest) {
+  const url = request.nextUrl.clone()
+  const { pathname, searchParams } = url
+  
+  // Block any NextAuth API routes immediately - return 404
+  if (pathname.startsWith('/api/auth/')) {
+    return new NextResponse(
+      JSON.stringify({ error: 'Authentication not available' }),
+      { 
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    )
   }
-)
+  
+  // Redirect ALL auth-related page paths to dashboard (no authentication)
+  if (pathname.startsWith('/auth/')) {
+    const dashboardUrl = new URL('/', request.url)
+    dashboardUrl.search = '' // Remove all query params
+    return NextResponse.redirect(dashboardUrl)
+  }
+  
+  // Handle callbackUrl redirects - redirect to dashboard (no auth)
+  // This catches URLs like /?callbackUrl=... or /auth/signin?callbackUrl=...
+  if (searchParams.has('callbackUrl')) {
+    const dashboardUrl = new URL('/', request.url)
+    dashboardUrl.search = '' // Remove all query params
+    return NextResponse.redirect(dashboardUrl)
+  }
+  
+  // If accessing root with any auth-related query params, clean them up
+  if (pathname === '/' && (searchParams.has('error') || searchParams.has('access_denied'))) {
+    const dashboardUrl = new URL('/', request.url)
+    dashboardUrl.search = ''
+    return NextResponse.redirect(dashboardUrl)
+  }
+  
+  // Allow all other requests - no authentication required
+  return NextResponse.next()
+}
 
 export const config = {
   matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico).*)',
+    /*
+     * Match all request paths including API routes to handle NextAuth blocking
+     * Exclude:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     */
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ]
 }

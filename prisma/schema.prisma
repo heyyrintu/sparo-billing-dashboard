@@ -24,7 +24,7 @@ model User {
 
 model OutboundFact {
   id              String    @id @default(cuid())
-  invoiceNo       String
+  invoiceNo       String?   // Optional - blank invoices included in calculations
   invoiceDate     DateTime
   dispatchedDate  DateTime?
   partyName       String?
@@ -35,13 +35,14 @@ model OutboundFact {
   sourceChecksum  String
   createdAt       DateTime  @default(now())
 
-  @@unique([invoiceNo, invoiceDate], name: "invoiceNo_invoiceDate")
   @@map("outbound_fact")
 }
 
 model InboundFact {
   id             String   @id @default(cuid())
   receivedDate   DateTime
+  invoiceNo      String?
+  invoiceValue   Decimal  @default(0)
   partyName      String?
   invoiceQty     Decimal
   boxes          Decimal
@@ -90,4 +91,17 @@ model UploadLog {
   createdAt  DateTime @default(now())
 
   @@map("upload_log")
+}
+
+model RejectedRow {
+  id         String   @id @default(cuid())
+  uploadLogId String
+  rowNumber  Int
+  rowData    String   // JSON string of the row data
+  reason     String
+  fileType   String   // "INBOUND" or "OUTBOUND"
+  filename   String
+  createdAt  DateTime @default(now())
+
+  @@map("rejected_rows")
 }

@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { parseOutboundExcel } from '@/lib/parser/parseOutbound'
 import { generateChecksum } from '@/lib/utils'
 import { PrismaClient } from '@prisma/client'
@@ -8,7 +6,9 @@ import { refreshDailySummary, refreshMonthlyRevenue, getAffectedDates, getAffect
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+  log: ['error', 'warn']
+})
 
 export async function GET() {
   return NextResponse.json({ 
@@ -19,16 +19,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  let session = null
   try {
-    if (process.env.DISABLE_AUTH === 'true') {
-      session = { user: { id: 'dev-user' } } as any
-    } else {
-      session = await getServerSession(authOptions)
-      if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-    }
+    // Authentication removed - allow all requests
+    const userId = 'anonymous'
 
     const formData = await request.formData()
     const file = formData.get('file') as File
@@ -44,20 +37,44 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const checksum = generateChecksum(buffer)
     
-    // Check if file already exists
+    // Check if file already exists - if so, delete old data and re-upload
     const existingUpload = await prisma.uploadLog.findFirst({
       where: { checksum, fileType: 'OUTBOUND' }
     })
 
+    let isReupload = false
     if (existingUpload) {
-      return NextResponse.json({ 
-        error: 'File with same content already uploaded',
-        uploadId: existingUpload.id 
-      }, { status: 409 })
+      isReupload = true
+      // Get dates of old data before deletion for refreshing summaries
+      const oldData = await prisma.outboundFact.findMany({
+        where: { sourceChecksum: checksum },
+        select: { invoiceDate: true }
+      })
+      const oldDates = oldData.map(row => row.invoiceDate)
+      
+      // Delete old data
+      await prisma.outboundFact.deleteMany({
+        where: { sourceChecksum: checksum }
+      })
+      
+      // Delete old upload log and rejected rows
+      await prisma.uploadLog.delete({
+        where: { id: existingUpload.id }
+      }).catch(() => {}) // Ignore if already deleted
+      
+      // Refresh daily summaries and monthly revenue for old dates
+      if (oldDates.length > 0) {
+        const affectedDates = await getAffectedDates(oldDates)
+        const affectedMonths = await getAffectedMonths(oldDates)
+        await Promise.all([
+          refreshDailySummary(affectedDates),
+          refreshMonthlyRevenue(affectedMonths)
+        ])
+      }
     }
 
     // Parse Excel file
-    const parsedData = parseOutboundExcel(buffer)
+    const parseResult = parseOutboundExcel(buffer)
 
     // Store file
     const uploadDir = join(process.cwd(), 'data', 'uploads', 
@@ -70,25 +87,14 @@ export async function POST(request: NextRequest) {
     const filePath = join(uploadDir, `${checksum}.xlsx`)
     await writeFile(filePath, buffer)
 
-    // Upsert data into database (deduplication handled in parser)
-    const upsertPromises = parsedData.map(row => 
-      prisma.outboundFact.upsert({
-        where: {
-          invoiceNo_invoiceDate: {
-            invoiceNo: row.invoiceNo,
-            invoiceDate: row.invoiceDate
-          }
-        },
-        update: {
-          dispatchedDate: row.dispatchedDate,
-          partyName: row.partyName,
-          invoiceQty: row.invoiceQty,
-          boxes: row.boxes,
-          grossTotal: row.grossTotal,
-          sourceFile: filePath.replace(process.cwd(), ''),
-          sourceChecksum: checksum
-        },
-        create: {
+    // Insert data into database using batching to avoid timeout
+    const batchSize = 100
+    let totalInserted = 0
+    
+    for (let i = 0; i < parseResult.validRows.length; i += batchSize) {
+      const batch = parseResult.validRows.slice(i, i + batchSize)
+      const result = await prisma.outboundFact.createMany({
+        data: batch.map(row => ({
           invoiceNo: row.invoiceNo,
           invoiceDate: row.invoiceDate,
           dispatchedDate: row.dispatchedDate,
@@ -98,15 +104,14 @@ export async function POST(request: NextRequest) {
           grossTotal: row.grossTotal,
           sourceFile: filePath.replace(process.cwd(), ''),
           sourceChecksum: checksum
-        }
+        }))
       })
-    )
-
-    await Promise.all(upsertPromises)
+      totalInserted += result.count
+    }
 
     // Refresh daily summaries and monthly revenue for affected dates
-    const affectedDates = await getAffectedDates(parsedData.map(row => row.invoiceDate))
-    const affectedMonths = await getAffectedMonths(parsedData.map(row => row.invoiceDate))
+    const affectedDates = await getAffectedDates(parseResult.validRows.map(row => row.invoiceDate))
+    const affectedMonths = await getAffectedMonths(parseResult.validRows.map(row => row.invoiceDate))
     
     await Promise.all([
       refreshDailySummary(affectedDates),
@@ -114,22 +119,47 @@ export async function POST(request: NextRequest) {
     ])
 
     // Log upload
-    await prisma.uploadLog.create({
+    const uploadLog = await prisma.uploadLog.create({
       data: {
         filename: file.name,
         fileType: 'OUTBOUND',
-        uploadedBy: session.user.id,
-        rowCount: parsedData.length,
+        uploadedBy: userId,
+        rowCount: parseResult.validRows.length,
         checksum,
         status: 'SUCCESS',
-        message: `Successfully uploaded ${parsedData.length} rows`
+        message: `Successfully uploaded ${parseResult.validRows.length} rows${parseResult.rejectedRows.length > 0 ? `, ${parseResult.rejectedRows.length} rows rejected` : ''}`
       }
     })
 
+    // Save rejected rows to database
+    if (parseResult.rejectedRows.length > 0) {
+      try {
+        if ((prisma as any).rejectedRow) {
+          await (prisma as any).rejectedRow.createMany({
+            data: parseResult.rejectedRows.map(rejected => ({
+              uploadLogId: uploadLog.id,
+              rowNumber: rejected.rowNumber,
+              rowData: JSON.stringify(rejected.data),
+              reason: rejected.reason,
+              fileType: 'OUTBOUND',
+              filename: file.name
+            }))
+          })
+        } else {
+          console.warn('RejectedRow model not available. Please run: npx prisma generate')
+        }
+      } catch (error) {
+        console.error('Failed to save rejected rows:', error)
+        // Continue even if rejected rows can't be saved
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      rowCount: parsedData.length,
-      message: `Successfully uploaded ${parsedData.length} outbound records`
+      rowCount: parseResult.validRows.length,
+      rejectedCount: parseResult.rejectedRows.length,
+      uploadId: uploadLog.id,
+      message: `${isReupload ? 'Re-uploaded' : 'Successfully uploaded'} ${parseResult.validRows.length} outbound records${parseResult.rejectedRows.length > 0 ? `, ${parseResult.rejectedRows.length} rows rejected` : ''}`
     })
 
   } catch (error) {
@@ -144,7 +174,7 @@ export async function POST(request: NextRequest) {
         data: {
           filename: file?.name || 'unknown',
           fileType: 'OUTBOUND',
-          uploadedBy: session?.user?.id || 'unknown',
+          uploadedBy: userId,
           rowCount: 0,
           checksum: '',
           status: 'FAILED',

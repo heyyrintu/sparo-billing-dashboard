@@ -1,19 +1,21 @@
 import { Suspense } from 'react'
-import { Dashboard } from './components/Dashboard'
-import { Header } from './components/Header'
-import { AuthWrapper } from './components/AuthWrapper'
+import { Dashboard } from '@/components/Dashboard'
+import { Header } from '@/components/Header'
 
 export default function Home() {
   return (
-    <AuthWrapper>
-      <div className="min-h-screen bg-background">
+    <div className="min-h-screen relative bg-[#F1F1F1]">
+      {/* Header */}
+      <div className="relative z-50">
         <Header />
-        <main className="container mx-auto px-4 py-8">
-          <Suspense fallback={<div>Loading...</div>}>
-            <Dashboard />
-          </Suspense>
-        </main>
       </div>
-    </AuthWrapper>
+
+      {/* Main Content */}
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Suspense fallback={<div>Loading...</div>}>
+          <Dashboard />
+        </Suspense>
+      </main>
+    </div>
   )
 }

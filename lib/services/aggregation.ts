@@ -32,7 +32,13 @@ export async function refreshDailySummary(dates: Date[]): Promise<void> {
     })
     
     // Calculate aggregates
-    const outboundInvoices = outboundData.length
+    // Count unique invoice numbers only (exclude blank/null/undefined)
+    const uniqueInvoices = new Set(
+      outboundData
+        .map(row => row.invoiceNo)
+        .filter(invoiceNo => invoiceNo && invoiceNo.trim() !== '')
+    )
+    const outboundInvoices = uniqueInvoices.size
     const outboundQty = outboundData.reduce((sum, row) => sum + Number(row.invoiceQty), 0)
     const outboundBoxes = outboundData.reduce((sum, row) => sum + Number(row.boxes), 0)
     const grossSale = outboundData.reduce((sum, row) => sum + Number(row.grossTotal), 0)

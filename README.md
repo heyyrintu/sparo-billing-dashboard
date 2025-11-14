@@ -10,7 +10,7 @@ A production-ready billing dashboard for processing Inbound and Outbound MIS Exc
 - **Interactive Charts**: Daily trends with Recharts visualization
 - **Data Freshness**: Track upload history and data currency
 - **Secure Authentication**: NextAuth with admin role management
-- **Docker Ready**: Complete containerization with PostgreSQL
+- **Production Ready**: Built for production deployment
 - **Indian Formatting**: Currency and number formatting for Indian locale
 
 ## Tech Stack
@@ -20,15 +20,14 @@ A production-ready billing dashboard for processing Inbound and Outbound MIS Exc
 - **Charts**: Recharts
 - **Authentication**: NextAuth.js
 - **File Processing**: SheetJS (xlsx)
-- **Deployment**: Docker, Docker Compose
+- **Deployment**: Vercel, Railway, or any Node.js hosting
 
 ## Quick Start
 
 ### Prerequisites
 
 - Node.js 18+
-- Docker and Docker Compose
-- PostgreSQL (if running locally)
+- PostgreSQL database (local or remote)
 
 ### Environment Setup
 
@@ -45,31 +44,6 @@ NEXTAUTH_URL="http://localhost:3000"
 ADMIN_EMAIL="admin@dronalogitech.cloud"
 ADMIN_PASSWORD="drona@12345"
 ```
-
-### Docker Deployment (Recommended)
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd spario-dashboard
-```
-
-2. Start the services:
-```bash
-docker-compose up -d
-```
-
-3. Run database migrations:
-```bash
-docker-compose exec app npx prisma migrate deploy
-```
-
-4. Create admin user:
-```bash
-docker-compose exec app npx prisma db seed
-```
-
-5. Access the application at `http://localhost:3000`
 
 ### Local Development
 
@@ -202,7 +176,7 @@ The repository includes sample Excel files in the `sample-data/` directory for t
 1. **Database Connection**: Ensure PostgreSQL is running and `DATABASE_URL` is correct
 2. **File Upload**: Check file permissions and disk space
 3. **Authentication**: Verify `NEXTAUTH_SECRET` is set
-4. **Docker Issues**: Check container logs with `docker-compose logs`
+4. **Database Connection**: Ensure PostgreSQL is running and accessible
 
 ### Health Checks
 

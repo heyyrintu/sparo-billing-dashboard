@@ -1,15 +1,46 @@
 import * as XLSX from 'xlsx'
 import { z } from 'zod'
-import { normalizeColumnName, coerceDate, coerceNumber, isBlankRow, hasRequiredFields } from '@/lib/utils'
+import { normalizeColumnName, coerceDate, coerceNumber, isBlankRow } from '@/lib/utils'
 import { InboundRowSchema, type InboundRow } from './validation'
 
 const REQUIRED_COLUMNS = [
+  'received_date',
+  'invoice_no',
+  'invoice_value',
   'invoice_qty',
   'boxes'
 ]
 
 const COLUMN_MAPPINGS: Record<string, string[]> = {
-  'received_date': ['grn_date', 'grn date', 'grndate', 'received_date', 'received date', 'receiveddate', 'date', 'received', 'inward date', 'inwarddate'],
+  'received_date': ['received date', 'received_date', 'receiveddate', 'inward date', 'inwarddate', 'grn_date', 'grn date', 'grndate', 'date', 'received'],
+  'invoice_no': [
+    'stn_no./invoice_no.',
+    'stn_no./invoice_no',
+    'stn_no/invoice_no',
+    'stn_no_invoice_no',
+    'stn_no',
+    'invoice_no',
+    'invoice no',
+    'invoice_no.',
+    'invoice number',
+    'invoice_number',
+    'stn_invoice_no',
+    'stn no./invoice no.',
+    'stn no./invoice no',
+    'stn no/invoice no',
+    'stn no invoice no',
+  ],
+  'invoice_value': [
+    'invoice_value',
+    'invoice value',
+    'invoice_value_(rs)',
+    'invoice_value_in_inr',
+    'value',
+    'total_value',
+    'total value',
+    'invoice_total_value',
+    'invoice total value',
+  ],
   'party_name': ['party_name', 'party name', 'partyname', 'customer', 'client', 'supplier'],
   'invoice_qty': ['invoice_qty', 'invoice qty', 'invoiceqty', 'quantity', 'qty', 'invoice_quantity', 'invoice quantity', 'invoice', 'invoices'],
   'boxes': ['boxes', 'no_of_boxes', 'no of boxes', 'noofboxes', 'box_count', 'no_of_box', 'no of box', 'bags/box', 'bags_box', 'bags box', 'bags', 'bag'],
@@ -42,8 +73,8 @@ function mapRowToInbound(row: any[], headers: string[]): Partial<InboundRow> {
     columnMap[col] = index
   }
   
-  // Map optional columns (including received_date which we'll use current date if not found)
-  const optionalColumns = ['received_date', 'party_name', 'type', 'article_no']
+  // Map optional columns
+  const optionalColumns = ['party_name', 'type', 'article_no']
   for (const col of optionalColumns) {
     const index = findColumnIndex(headers, col)
     if (index !== -1) {
@@ -54,12 +85,28 @@ function mapRowToInbound(row: any[], headers: string[]): Partial<InboundRow> {
   const result: any = {}
   
   // Extract and coerce values
-  // Use received date if available, otherwise use current date
-  if (columnMap.received_date !== undefined && row[columnMap.received_date]) {
+  // Use received date from the dedicated column, fallback to current date if missing
+  if (row[columnMap.received_date]) {
     const parsedDate = coerceDate(row[columnMap.received_date])
     result.receivedDate = parsedDate || new Date() // Fall back to current date if parsing fails
   } else {
     result.receivedDate = new Date()
+  }
+
+  if (columnMap.invoice_no !== undefined) {
+    const invoiceRaw = row[columnMap.invoice_no]
+    const invoice = invoiceRaw !== undefined && invoiceRaw !== null ? String(invoiceRaw).trim() : ''
+    result.invoiceNo = invoice || undefined
+  }
+
+  if (columnMap.invoice_value !== undefined) {
+    const rawValue = row[columnMap.invoice_value]
+    result.invoiceValue = coerceNumber(rawValue)
+    if (result.invoiceValue === null) {
+      result.invoiceValue = 0
+    }
+  } else {
+    result.invoiceValue = 0
   }
   
   if (columnMap.party_name !== undefined) {
@@ -67,11 +114,21 @@ function mapRowToInbound(row: any[], headers: string[]): Partial<InboundRow> {
   }
   
   if (columnMap.invoice_qty !== undefined) {
-    result.invoiceQty = coerceNumber(row[columnMap.invoice_qty])
+    const rawValue = row[columnMap.invoice_qty]
+    result.invoiceQty = coerceNumber(rawValue)
+    // Default to 0 if null (including empty cells, null, undefined, or unparseable)
+    if (result.invoiceQty === null) {
+      result.invoiceQty = 0
+    }
   }
   
   if (columnMap.boxes !== undefined) {
-    result.boxes = coerceNumber(row[columnMap.boxes])
+    const rawValue = row[columnMap.boxes]
+    result.boxes = coerceNumber(rawValue)
+    // Default to 0 if null (including empty cells, null, undefined, or unparseable)
+    if (result.boxes === null) {
+      result.boxes = 0
+    }
   }
   
   if (columnMap.type !== undefined) {
@@ -85,20 +142,26 @@ function mapRowToInbound(row: any[], headers: string[]): Partial<InboundRow> {
   return result
 }
 
-export function parseInboundExcel(buffer: Buffer): InboundRow[] {
+export interface ParseResult {
+  validRows: InboundRow[]
+  rejectedRows: Array<{
+    rowNumber: number
+    data: Record<string, any>
+    reason: string
+  }>
+}
+
+export function parseInboundExcel(buffer: Buffer): ParseResult {
   const workbook = XLSX.read(buffer, { type: 'buffer' })
   
-  // Find the "PIPO & BIBO Inward" sheet or similar
-  const sheetName = workbook.SheetNames.find(name => 
-    name.toLowerCase().includes('inward') || 
-    name.toLowerCase().includes('inbound') ||
-    name.toLowerCase().includes('pipo') ||
-    name.toLowerCase().includes('bibo') ||
-    name.toLowerCase().includes('received')
+  // Strictly require the "PIPO & BIBO Inward" sheet (case-insensitive match)
+  const targetSheetName = 'pipo & bibo inward'
+  const sheetName = workbook.SheetNames.find(
+    (name) => name.trim().toLowerCase() === targetSheetName
   )
   
   if (!sheetName) {
-    throw new Error('Could not find "PIPO & BIBO Inward" or similar sheet in Excel file')
+    throw new Error('Could not find the "PIPO & BIBO Inward" sheet in the Excel file')
   }
   
   const worksheet = workbook.Sheets[sheetName]
@@ -114,39 +177,49 @@ export function parseInboundExcel(buffer: Buffer): InboundRow[] {
   const rows = jsonData.slice(1) as any[][]
   
   console.log('Inbound Excel - Available columns:', headers)
-  console.log('Looking for columns: GRN Date (for date), Invoice Qty, Bags/Box')
+  console.log('Looking for columns: Received Date, STN No./Invoice No., Invoice Value, Invoice Qty, Bags/Box')
   
   const parsedRows: InboundRow[] = []
+  const rejectedRows: Array<{
+    rowNumber: number
+    data: Record<string, any>
+    reason: string
+  }> = []
   
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
+    const rowNumber = i + 2 // +2 because Excel rows start at 1 and we have header row
     
-    // Skip blank rows - check if row is empty or has no meaningful data
-    if (!row || row.length === 0) continue
-    
-    // Convert array to object for blank row checking
+    // Convert array to object for easier handling
     const rowObj = headers.reduce((obj, header, index) => {
       obj[header] = row[index]
       return obj
     }, {} as Record<string, any>)
     
-    if (isBlankRow(rowObj)) continue
+    // Skip truly blank rows - but be lenient with partial data
+    if (!row || row.length === 0) {
+      continue // Skip silently - don't even add to rejected
+    }
+    
+    // Only reject if truly blank (all values are empty/null/undefined)
+    if (isBlankRow(rowObj)) {
+      continue // Skip silently - don't even add to rejected
+    }
     
     try {
       const mappedRow = mapRowToInbound(row, headers)
       
-      // Additional validation after mapping - only check required fields
-      if (mappedRow.invoiceQty === null || 
-          mappedRow.invoiceQty === undefined ||
-          mappedRow.boxes === null || 
-          mappedRow.boxes === undefined) {
-        console.log(`Skipping row ${i + 2}: Missing required fields (Invoice Qty or Boxes)`)
-        continue
+      // Additional validation after mapping - be more lenient
+      // Ensure numeric fields default to 0 if they're still null
+      if (mappedRow.invoiceQty === null || mappedRow.invoiceQty === undefined) {
+        mappedRow.invoiceQty = 0
+      }
+      if (mappedRow.boxes === null || mappedRow.boxes === undefined) {
+        mappedRow.boxes = 0
       }
       
       // Ensure receivedDate is never null (fallback to current date)
       if (!mappedRow.receivedDate || !(mappedRow.receivedDate instanceof Date)) {
-        console.log(`Row ${i + 2}: Using current date as fallback for invalid/missing GRN Date`)
         mappedRow.receivedDate = new Date()
       }
       
@@ -156,15 +229,27 @@ export function parseInboundExcel(buffer: Buffer): InboundRow[] {
       
     } catch (error) {
       if (error instanceof z.ZodError) {
-        throw new Error(`Row ${i + 2}: ${error.errors.map(e => e.message).join(', ')}`)
+        rejectedRows.push({
+          rowNumber,
+          data: rowObj,
+          reason: `Validation error: ${error.errors.map(e => e.message).join(', ')}`
+        })
+      } else {
+        rejectedRows.push({
+          rowNumber,
+          data: rowObj,
+          reason: error instanceof Error ? error.message : 'Unknown error'
+        })
       }
-      throw new Error(`Row ${i + 2}: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
   
-  if (parsedRows.length === 0) {
-    throw new Error('No valid data rows found in Excel file')
+  if (parsedRows.length === 0 && rejectedRows.length === 0) {
+    throw new Error('No data rows found in Excel file')
   }
   
-  return parsedRows
+  return {
+    validRows: parsedRows,
+    rejectedRows
+  }
 }

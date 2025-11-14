@@ -1,20 +1,22 @@
 import { z } from 'zod'
 
 export const OutboundRowSchema = z.object({
-  invoiceNo: z.string().min(1, 'Invoice No is required'),
+  invoiceNo: z.string().optional(), // Optional - blank invoices are included in calculations but not counted
   invoiceDate: z.date(),
   dispatchedDate: z.date().optional(),
   partyName: z.string().optional(),
-  invoiceQty: z.number().min(0, 'Invoice Qty must be non-negative'),
-  boxes: z.number().min(0, 'Boxes must be non-negative'),
-  grossTotal: z.number().min(0, 'Gross Total must be non-negative'),
+  invoiceQty: z.number().min(0, 'Invoice Qty must be non-negative').default(0),
+  boxes: z.number().min(0, 'Boxes must be non-negative').default(0),
+  grossTotal: z.number().min(0, 'Gross Total must be non-negative').default(0),
 })
 
 export const InboundRowSchema = z.object({
   receivedDate: z.date(),
+  invoiceNo: z.string().optional(),
+  invoiceValue: z.number().min(0, 'Invoice Value must be non-negative').default(0),
   partyName: z.string().optional(),
-  invoiceQty: z.number().min(0, 'Invoice Qty must be non-negative'),
-  boxes: z.number().min(0, 'Boxes must be non-negative'),
+  invoiceQty: z.number().min(0, 'Invoice Qty must be non-negative').default(0),
+  boxes: z.number().min(0, 'Boxes must be non-negative').default(0),
   type: z.string().optional(),
   articleNo: z.string().optional(),
 })

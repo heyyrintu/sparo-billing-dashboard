@@ -6,12 +6,11 @@ export interface RevenueSlab {
 
 export const REVENUE_SLABS: RevenueSlab[] = [
   { min: 0, max: 5, rate: 1.75 },
-  { min: 5, max: 8, rate: 1.65 },
-  { min: 8, max: 11, rate: 1.55 },
-  { min: 11, max: 14, rate: 1.45 },
-  { min: 14, max: 17, rate: 1.35 },
-  { min: 17, max: 20, rate: 1.25 },
-  { min: 20, max: null, rate: 1.15 }, // Above 20 cr
+    { min: 5, max: 8, rate: 1.69 },
+  { min: 8, max: 11, rate: 1.57 },
+  { min: 11, max: 14, rate: 1.47 },
+  { min: 14, max: 17, rate: 1.39 },
+  { min: 17, max: null, rate: 1.39 }, // Above 17 cr
 ]
 
 export function getSlabForAmount(amount: number): RevenueSlab {

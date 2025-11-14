@@ -2,23 +2,28 @@
 
 echo "🚀 Setting up Spario Billing Dashboard..."
 
-# Check if Docker is installed
-if ! command -v docker &> /dev/null; then
-    echo "❌ Docker is not installed. Please install Docker first."
+# Check if Node.js is installed
+if ! command -v node &> /dev/null; then
+    echo "❌ Node.js is not installed. Please install Node.js 18+ first."
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
-    echo "❌ Docker Compose is not installed. Please install Docker Compose first."
-    exit 1
+# Check if PostgreSQL is installed
+if ! command -v psql &> /dev/null; then
+    echo "⚠️  PostgreSQL is not installed. Please install PostgreSQL first."
+    echo "   You can skip this if you're using a remote database."
 fi
 
 # Create environment file if it doesn't exist
 if [ ! -f .env.local ]; then
     echo "📝 Creating environment file..."
     cp env.example .env.local
-    echo "✅ Environment file created. Please update .env.local with your settings."
+    echo "✅ Environment file created. Please update .env.local with your database settings."
 fi
+
+# Install dependencies
+echo "📦 Installing dependencies..."
+npm install
 
 # Create necessary directories
 echo "📁 Creating directories..."
@@ -29,31 +34,23 @@ mkdir -p sample-data
 echo "📊 Generating sample Excel files..."
 npm run generate:sample
 
-# Build and start services
-echo "🐳 Starting Docker services..."
-docker-compose up -d
-
-# Wait for database to be ready
-echo "⏳ Waiting for database to be ready..."
-sleep 10
-
 # Run database migrations
 echo "🗄️ Running database migrations..."
-docker-compose exec app npx prisma migrate deploy
+npx prisma migrate dev
 
 # Seed the database
 echo "🌱 Seeding database..."
-docker-compose exec app npm run db:seed
+npm run db:seed
 
 echo "✅ Setup complete!"
 echo ""
-echo "🌐 Application is running at: http://localhost:3000"
+echo "🚀 Start the development server:"
+echo "   npm run dev"
+echo ""
+echo "🌐 Application will be available at: http://localhost:4000"
 echo "👤 Default credentials:"
 echo "   Email: admin@dronalogitech.cloud"
 echo "   Password: drona@12345"
 echo ""
 echo "📊 Sample Excel files are available in the sample-data/ directory"
-echo "📋 Admin panel: http://localhost:3000/admin"
-echo ""
-echo "To stop the application: docker-compose down"
-echo "To view logs: docker-compose logs -f"
+echo "📋 Admin panel: http://localhost:4000/admin"

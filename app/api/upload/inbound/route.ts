@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { parseInboundExcel } from '@/lib/parser/parseInbound'
 import { generateChecksum } from '@/lib/utils'
 import { PrismaClient } from '@prisma/client'
@@ -8,7 +6,9 @@ import { refreshDailySummary, getAffectedDates } from '@/lib/services/aggregatio
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+  log: ['error', 'warn']
+})
 
 export async function GET() {
   return NextResponse.json({ 
@@ -19,16 +19,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  let session = null
   try {
-    if (process.env.DISABLE_AUTH === 'true') {
-      session = { user: { id: 'dev-user' } } as any
-    } else {
-      session = await getServerSession(authOptions)
-      if (!session?.user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-    }
+    // Authentication removed - allow all requests
+    const userId = 'anonymous'
 
     const formData = await request.formData()
     const file = formData.get('file') as File
@@ -44,20 +37,40 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const checksum = generateChecksum(buffer)
     
-    // Check if file already exists
+    // Check if file already exists - if so, delete old data and re-upload
     const existingUpload = await prisma.uploadLog.findFirst({
       where: { checksum, fileType: 'INBOUND' }
     })
 
+    let isReupload = false
     if (existingUpload) {
-      return NextResponse.json({ 
-        error: 'File with same content already uploaded',
-        uploadId: existingUpload.id 
-      }, { status: 409 })
+      isReupload = true
+      // Get dates of old data before deletion for refreshing summaries
+      const oldData = await prisma.inboundFact.findMany({
+        where: { sourceChecksum: checksum },
+        select: { receivedDate: true }
+      })
+      const oldDates = oldData.map(row => row.receivedDate)
+      
+      // Delete old data
+      await prisma.inboundFact.deleteMany({
+        where: { sourceChecksum: checksum }
+      })
+      
+      // Delete old upload log and rejected rows
+      await prisma.uploadLog.delete({
+        where: { id: existingUpload.id }
+      }).catch(() => {}) // Ignore if already deleted
+      
+      // Refresh daily summaries for old dates
+      if (oldDates.length > 0) {
+        const affectedDates = await getAffectedDates(oldDates)
+        await refreshDailySummary(affectedDates)
+      }
     }
 
     // Parse Excel file
-    const parsedData = parseInboundExcel(buffer)
+    const parseResult = parseInboundExcel(buffer)
 
     // Store file
     const uploadDir = join(process.cwd(), 'data', 'uploads', 
@@ -70,41 +83,77 @@ export async function POST(request: NextRequest) {
     const filePath = join(uploadDir, `${checksum}.xlsx`)
     await writeFile(filePath, buffer)
 
-    // Insert data into database
-    const insertedRows = await prisma.inboundFact.createMany({
-      data: parsedData.map(row => ({
-        receivedDate: row.receivedDate,
-        partyName: row.partyName,
-        invoiceQty: row.invoiceQty,
-        boxes: row.boxes,
-        type: row.type,
-        articleNo: row.articleNo,
-        sourceFile: filePath.replace(process.cwd(), ''),
-        sourceChecksum: checksum
-      }))
-    })
+    // Insert data into database using batching to avoid timeout
+    const batchSize = 100
+    let totalInserted = 0
+    
+    for (let i = 0; i < parseResult.validRows.length; i += batchSize) {
+      const batch = parseResult.validRows.slice(i, i + batchSize)
+      const result = await prisma.inboundFact.createMany({
+        data: batch.map(row => ({
+          receivedDate: row.receivedDate,
+          invoiceNo: row.invoiceNo,
+          invoiceValue: row.invoiceValue ?? 0,
+          partyName: row.partyName,
+          invoiceQty: row.invoiceQty,
+          boxes: row.boxes,
+          type: row.type,
+          articleNo: row.articleNo,
+          sourceFile: filePath.replace(process.cwd(), ''),
+          sourceChecksum: checksum
+        }))
+      })
+      totalInserted += result.count
+    }
+    
+    const insertedRows = { count: totalInserted }
 
     // Refresh daily summaries for affected dates
-    const affectedDates = await getAffectedDates(parsedData.map(row => row.receivedDate))
+    const affectedDates = await getAffectedDates(parseResult.validRows.map(row => row.receivedDate))
     await refreshDailySummary(affectedDates)
 
     // Log upload
-    await prisma.uploadLog.create({
+    const uploadLog = await prisma.uploadLog.create({
       data: {
         filename: file.name,
         fileType: 'INBOUND',
-        uploadedBy: session.user.id,
+        uploadedBy: userId,
         rowCount: insertedRows.count,
         checksum,
         status: 'SUCCESS',
-        message: `Successfully uploaded ${insertedRows.count} rows`
+        message: `Successfully uploaded ${insertedRows.count} rows${parseResult.rejectedRows.length > 0 ? `, ${parseResult.rejectedRows.length} rows rejected` : ''}`
       }
     })
+
+    // Save rejected rows to database
+    if (parseResult.rejectedRows.length > 0) {
+      try {
+        if ((prisma as any).rejectedRow) {
+          await (prisma as any).rejectedRow.createMany({
+            data: parseResult.rejectedRows.map(rejected => ({
+              uploadLogId: uploadLog.id,
+              rowNumber: rejected.rowNumber,
+              rowData: JSON.stringify(rejected.data),
+              reason: rejected.reason,
+              fileType: 'INBOUND',
+              filename: file.name
+            }))
+          })
+        } else {
+          console.warn('RejectedRow model not available. Please run: npx prisma generate')
+        }
+      } catch (error) {
+        console.error('Failed to save rejected rows:', error)
+        // Continue even if rejected rows can't be saved
+      }
+    }
 
     return NextResponse.json({
       success: true,
       rowCount: insertedRows.count,
-      message: `Successfully uploaded ${insertedRows.count} inbound records`
+      rejectedCount: parseResult.rejectedRows.length,
+      uploadId: uploadLog.id,
+      message: `${isReupload ? 'Re-uploaded' : 'Successfully uploaded'} ${insertedRows.count} inbound records${parseResult.rejectedRows.length > 0 ? `, ${parseResult.rejectedRows.length} rows rejected` : ''}`
     })
 
   } catch (error) {
@@ -119,7 +168,7 @@ export async function POST(request: NextRequest) {
         data: {
           filename: file?.name || 'unknown',
           fileType: 'INBOUND',
-          uploadedBy: session?.user?.id || 'unknown',
+          uploadedBy: userId,
           rowCount: 0,
           checksum: '',
           status: 'FAILED',
