@@ -1,11 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Upload } from 'lucide-react'
 
 export function Header() {
-  const pathname = usePathname()
 
   return (
     <header
@@ -33,33 +30,6 @@ export function Header() {
             </Link>
           </div>
 
-          {/* Navigation */}
-          <nav className="flex items-center gap-4">
-            <Link href="/">
-              <button
-                className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
-                  pathname === '/'
-                    ? 'bg-red-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <LayoutDashboard className="h-4 w-4" />
-                <span>Dashboard</span>
-              </button>
-            </Link>
-            <Link href="/upload">
-              <button
-                className={`px-4 py-2 rounded-lg transition-all flex items-center space-x-2 ${
-                  pathname === '/upload'
-                    ? 'bg-red-600 text-white'
-                    : 'text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                <Upload className="h-4 w-4" />
-                <span>Upload</span>
-              </button>
-            </Link>
-          </nav>
         </div>
       </div>
     </header>
