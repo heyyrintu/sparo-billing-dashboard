@@ -9,7 +9,7 @@
     "lint": "next lint",
     "format": "prettier --write .",
     "test": "jest",
-    "postinstall": "prisma generate",
+    "postinstall": "node scripts/postinstall.js",
     "db:seed": "tsx prisma/seed.ts",
     "generate:sample": "node scripts/generate-sample-data.js"
   },
