@@ -73,8 +73,10 @@ export async function POST(request: NextRequest) {
     // Parse Excel file
     const parseResult = parseOutboundExcel(buffer)
 
-    // Store file
-    const uploadDir = join(process.cwd(), 'data', 'uploads', 
+    // Store file - use /tmp in serverless environments (Vercel), otherwise use data/uploads
+    const isServerless = process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    const baseDir = isServerless ? '/tmp' : join(process.cwd(), 'data', 'uploads')
+    const uploadDir = join(baseDir, 
       new Date().getFullYear().toString(),
       (new Date().getMonth() + 1).toString().padStart(2, '0'),
       new Date().getDate().toString().padStart(2, '0')
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
           invoiceQty: row.invoiceQty,
           boxes: row.boxes,
           grossTotal: row.grossTotal,
-          sourceFile: filePath.replace(process.cwd(), ''),
+          sourceFile: isServerless ? `/tmp/uploads/${checksum}.xlsx` : filePath.replace(process.cwd(), ''),
           sourceChecksum: checksum
         }))
       })
