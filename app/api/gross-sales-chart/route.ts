@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
-import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, eachWeekOfInterval, eachDayOfInterval } from 'date-fns'
-
-const prisma = new PrismaClient()
+import { prisma } from '@/lib/prisma'
+import { startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, format, eachMonthOfInterval, eachWeekOfInterval, eachDayOfInterval } from 'date-fns'
 
 interface ChartDataPoint {
   label: string
@@ -23,8 +21,8 @@ export async function GET(request: NextRequest) {
     }
 
     const fromDate = new Date(from)
-    // Subtract 1 day from fromDate
-    fromDate.setDate(fromDate.getDate() - 1)
+    // Set fromDate to start of day to include all data on that date
+    fromDate.setHours(0, 0, 0, 0)
     const toDate = new Date(to)
     // Set toDate to end of day to include all data on that date
     toDate.setHours(23, 59, 59, 999)
@@ -32,8 +30,9 @@ export async function GET(request: NextRequest) {
     let chartData: ChartDataPoint[] = []
 
     if (view === 'month') {
-      // Get all months that have data
-      const outboundData = await prisma.outboundFact.findMany({
+      // Get all unique months that have data (not limited by date range)
+      // Get all dates from outbound data and extract unique months
+      const allDates = await prisma.outboundFact.findMany({
         select: {
           invoiceDate: true
         }
@@ -41,42 +40,49 @@ export async function GET(request: NextRequest) {
       
       // Extract unique months
       const monthSet = new Set<string>()
-      outboundData.forEach(row => {
+      allDates.forEach(row => {
         const month = startOfMonth(new Date(row.invoiceDate))
         monthSet.add(format(month, 'yyyy-MM'))
       })
       
-      const allMonths = Array.from(monthSet).map(monthStr => {
-        const [year, month] = monthStr.split('-').map(Number)
-        return new Date(year, month - 1, 1)
-      }).sort((a, b) => a.getTime() - b.getTime())
+      const allMonths = Array.from(monthSet)
+        .map(monthStr => {
+          const [year, month] = monthStr.split('-').map(Number)
+          return new Date(year, month - 1, 1)
+        })
+        .sort((a, b) => a.getTime() - b.getTime())
       
-      // Calculate gross sales for each month
-      for (const month of allMonths) {
+      // Use Promise.all for parallel queries - aggregate ALL data for each month
+      const monthDataPromises = allMonths.map(async (month) => {
         const monthStart = startOfMonth(month)
         const monthEnd = endOfMonth(month)
 
-        const data = await prisma.outboundFact.findMany({
+        const result = await prisma.outboundFact.aggregate({
           where: {
             invoiceDate: {
               gte: monthStart,
               lte: monthEnd
             }
+          },
+          _sum: {
+            grossTotal: true
           }
         })
-        const grossSale = data.reduce((sum, row) => sum + Number(row.grossTotal), 0)
 
-        chartData.push({
+        return {
           label: format(month, 'MMM yyyy'),
-          grossSale,
+          grossSale: Number(result._sum.grossTotal || 0),
           date: format(month, 'yyyy-MM')
-        })
-      }
+        }
+      })
+
+      chartData = await Promise.all(monthDataPromises)
     } else if (view === 'week') {
       // Get all weeks in the range
       const weeks = eachWeekOfInterval({ start: fromDate, end: toDate }, { weekStartsOn: 1 })
       
-      for (const week of weeks) {
+      // Use Promise.all for parallel queries
+      const weekDataPromises = weeks.map(async (week) => {
         const weekStart = startOfWeek(week, { weekStartsOn: 1 })
         const weekEnd = endOfWeek(week, { weekStartsOn: 1 })
         
@@ -84,46 +90,43 @@ export async function GET(request: NextRequest) {
         const actualStart = weekStart < fromDate ? fromDate : weekStart
         const actualEnd = weekEnd > toDate ? toDate : weekEnd
 
-        const data = await prisma.outboundFact.findMany({
+        const result = await prisma.outboundFact.aggregate({
           where: {
             invoiceDate: {
               gte: actualStart,
               lte: actualEnd
             }
+          },
+          _sum: {
+            grossTotal: true
           }
         })
-        const grossSale = data.reduce((sum, row) => sum + Number(row.grossTotal), 0)
 
-        chartData.push({
+        return {
           label: `${format(weekStart, 'MMM dd')} - ${format(weekEnd, 'MMM dd')}`,
-          grossSale,
+          grossSale: Number(result._sum.grossTotal || 0),
           date: format(weekStart, 'yyyy-MM-dd')
-        })
-      }
+        }
+      })
+
+      chartData = await Promise.all(weekDataPromises)
     } else {
-      // day view
-      const days = eachDayOfInterval({ start: fromDate, end: toDate })
-      
-      for (const day of days) {
-        const dayStart = startOfDay(day)
-        const dayEnd = endOfDay(day)
-
-        const data = await prisma.outboundFact.findMany({
-          where: {
-            invoiceDate: {
-              gte: dayStart,
-              lte: dayEnd
-            }
+      // day view - use DailySummary for better performance
+      const dailySummaries = await prisma.dailySummary.findMany({
+        where: {
+          day: {
+            gte: fromDate,
+            lte: toDate
           }
-        })
-        const grossSale = data.reduce((sum, row) => sum + Number(row.grossTotal), 0)
+        },
+        orderBy: { day: 'asc' }
+      })
 
-        chartData.push({
-          label: format(day, 'MMM dd'),
-          grossSale,
-          date: format(day, 'yyyy-MM-dd')
-        })
-      }
+      chartData = dailySummaries.map(day => ({
+        label: format(day.day, 'MMM dd'),
+        grossSale: Number(day.grossSale),
+        date: format(day.day, 'yyyy-MM-dd')
+      }))
     }
 
     return NextResponse.json(chartData)
@@ -136,4 +139,3 @@ export async function GET(request: NextRequest) {
     }, { status: 500 })
   }
 }
-

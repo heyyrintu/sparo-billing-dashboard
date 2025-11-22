@@ -7,7 +7,11 @@ import { DayPicker, DayPickerRangeProps, DayPickerSingleProps } from "react-day-
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/lib/ui/button"
 
-export type CalendarProps = DayPickerRangeProps | DayPickerSingleProps
+export type CalendarProps = (DayPickerRangeProps | DayPickerSingleProps) & {
+  className?: string
+  classNames?: any
+  showOutsideDays?: boolean
+}
 
 function Calendar({
   className,
@@ -54,8 +58,12 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ ...props }) => <ChevronLeft className="h-4 w-4" />,
-        IconRight: ({ ...props }) => <ChevronRight className="h-4 w-4" />,
+        Chevron: ({ orientation }) => {
+          if (orientation === "left") {
+            return <ChevronLeft className="h-4 w-4" />
+          }
+          return <ChevronRight className="h-4 w-4" />
+        },
       }}
       {...props}
     />

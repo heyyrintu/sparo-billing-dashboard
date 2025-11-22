@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { computeMonthlyRevenue } from '@/lib/revenue/calculator'
-
-const prisma = new PrismaClient()
 
 export async function refreshDailySummary(dates: Date[]): Promise<void> {
   for (const date of dates) {

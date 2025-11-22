@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { refreshDailySummary, getAffectedDates } from '@/lib/services/aggregation'
-
-const prisma = new PrismaClient()
 
 export async function DELETE(request: NextRequest) {
   try {

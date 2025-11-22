@@ -1,29 +1,35 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { AppSidebar } from '@/components/AppSidebar'
 import { DateRangePicker } from '@/components/DateRangePicker'
 import { KPICards } from '@/components/KPICards'
 import { DailyChart } from '@/components/DailyChart'
 import { BoxesBarChart } from '@/components/BoxesBarChart'
 import { GrossSalesBarChart } from '@/components/GrossSalesBarChart'
+import { MonthlyRevenueChart } from '@/components/MonthlyRevenueChart'
 import { subDays, startOfMonth } from 'date-fns'
 import { cn } from '@/lib/utils'
 
 export function Dashboard() {
-  const [activeTab, setActiveTab] = useState<'inbound' | 'outward' | 'revenue'>('revenue')
-  const [dateRange, setDateRange] = useState({
-    from: subDays(new Date(), 30),
-    to: new Date()
-  })
+  const [activeTab, setActiveTab] = useState<'inbound' | 'outward' | 'revenue' | 'operations'>('revenue')
+  const [dateRange, setDateRange] = useState<{ from: Date; to: Date } | null>(null)
   const [mode, setMode] = useState<'marginal' | 'flat'>('marginal')
   const [metric, setMetric] = useState<'gross' | 'revenue'>('gross')
 
-  const handleDateRangeChange = (from: Date, to: Date) => {
-    setDateRange({ from, to })
-  }
+  // Initialize date range on client side only to avoid hydration mismatch
+  useEffect(() => {
+    setDateRange({
+      from: subDays(new Date(), 30),
+      to: new Date()
+    })
+  }, [])
 
-  const handleQuickFilter = (filter: string) => {
+  const handleDateRangeChange = useCallback((from: Date, to: Date) => {
+    setDateRange({ from, to })
+  }, [])
+
+  const handleQuickFilter = useCallback((filter: string) => {
     const today = new Date()
     
     switch (filter) {
@@ -42,6 +48,21 @@ export function Dashboard() {
         setDateRange({ from: subDays(today, 30), to: today })
         break
     }
+  }, [])
+
+  // Show loading state until dateRange is initialized
+  if (!dateRange) {
+    return (
+      <div className={cn(
+        "flex w-full flex-1 flex-col overflow-hidden md:flex-row",
+        "h-screen"
+      )}>
+        <AppSidebar activeTab={activeTab} onTabChange={setActiveTab} />
+        <div className="flex flex-1 flex-col overflow-y-auto items-center justify-center">
+          <div className="text-muted-foreground">Loading...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -143,10 +164,16 @@ export function Dashboard() {
                 mode={mode} 
                 type="revenue" 
               />
-              <BoxesBarChart 
-                dateRange={dateRange} 
-                type="revenue" 
-              />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <MonthlyRevenueChart 
+                  mode="marginal"
+                  metric="gross"
+                />
+                <MonthlyRevenueChart 
+                  mode="marginal"
+                  metric="revenue"
+                />
+              </div>
               <DailyChart 
                 dateRange={dateRange} 
                 metric={metric} 

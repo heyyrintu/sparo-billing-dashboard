@@ -1,14 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { parseOutboundExcel } from '@/lib/parser/parseOutbound'
 import { generateChecksum } from '@/lib/utils'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { refreshDailySummary, refreshMonthlyRevenue, getAffectedDates, getAffectedMonths } from '@/lib/services/aggregation'
 import { writeFile, mkdir } from 'fs/promises'
 import { join } from 'path'
-
-const prisma = new PrismaClient({
-  log: ['error', 'warn']
-})
 
 export async function GET() {
   return NextResponse.json({ 
@@ -19,9 +15,10 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  // Authentication removed - allow all requests
+  const userId = 'anonymous'
+  
   try {
-    // Authentication removed - allow all requests
-    const userId = 'anonymous'
 
     const formData = await request.formData()
     const file = formData.get('file') as File

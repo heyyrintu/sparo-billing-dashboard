@@ -118,7 +118,6 @@ export function DateRangePicker({ from, to, onDateRangeChange, onQuickFilter }: 
                     setFromOpen(false)
                   }
                 }}
-                initialFocus
               />
             </PopoverContent>
           </Popover>
@@ -154,7 +153,6 @@ export function DateRangePicker({ from, to, onDateRangeChange, onQuickFilter }: 
                     setToOpen(false)
                   }
                 }}
-                initialFocus
               />
             </PopoverContent>
           </Popover>

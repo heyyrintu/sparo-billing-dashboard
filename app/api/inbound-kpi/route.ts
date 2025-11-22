@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { KPIParamsSchema } from '@/lib/parser/validation'
 import { calculateDelta, getPreviousPeriodDates } from '@/lib/utils'
 import type { InboundKPIData } from '@/lib/types'
-
-const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,61 +14,58 @@ export async function GET(request: NextRequest) {
     })
 
     const fromDate = new Date(params.from)
-    // Subtract 1 day from fromDate
-    fromDate.setDate(fromDate.getDate() - 1)
+    // Set fromDate to start of day to include all data on that date
+    fromDate.setHours(0, 0, 0, 0)
     const toDate = new Date(params.to)
     // Set toDate to end of day to include all data on that date
     toDate.setHours(23, 59, 59, 999)
 
-    const inboundData = await prisma.inboundFact.findMany({
+    // Use database aggregation for better performance
+    const currentTotalsResult = await prisma.inboundFact.aggregate({
       where: {
         receivedDate: {
           gte: fromDate,
           lte: toDate
         }
+      },
+      _count: { id: true },
+      _sum: {
+        invoiceValue: true,
+        invoiceQty: true,
+        boxes: true
       }
     })
 
-    const currentTotals = inboundData.reduce(
-      (acc, row) => ({
-        invoiceCount: acc.invoiceCount + 1, // Count all rows
-        invoiceValue: acc.invoiceValue + Number(row.invoiceValue),
-        invoiceQty: acc.invoiceQty + Number(row.invoiceQty),
-        boxes: acc.boxes + Number(row.boxes)
-      }),
-      {
-        invoiceCount: 0,
-        invoiceValue: 0,
-        invoiceQty: 0,
-        boxes: 0
-      }
-    )
+    const currentTotals = {
+      invoiceCount: currentTotalsResult._count.id,
+      invoiceValue: Number(currentTotalsResult._sum.invoiceValue || 0),
+      invoiceQty: Number(currentTotalsResult._sum.invoiceQty || 0),
+      boxes: Number(currentTotalsResult._sum.boxes || 0)
+    }
 
     const { from: prevFrom, to: prevTo } = getPreviousPeriodDates(fromDate, toDate)
 
-    const previousInboundData = await prisma.inboundFact.findMany({
+    const previousTotalsResult = await prisma.inboundFact.aggregate({
       where: {
         receivedDate: {
           gte: prevFrom,
           lte: prevTo
         }
+      },
+      _count: { id: true },
+      _sum: {
+        invoiceValue: true,
+        invoiceQty: true,
+        boxes: true
       }
     })
 
-    const previousTotals = previousInboundData.reduce(
-      (acc, row) => ({
-        invoiceCount: acc.invoiceCount + 1, // Count all rows
-        invoiceValue: acc.invoiceValue + Number(row.invoiceValue),
-        invoiceQty: acc.invoiceQty + Number(row.invoiceQty),
-        boxes: acc.boxes + Number(row.boxes)
-      }),
-      {
-        invoiceCount: 0,
-        invoiceValue: 0,
-        invoiceQty: 0,
-        boxes: 0
-      }
-    )
+    const previousTotals = {
+      invoiceCount: previousTotalsResult._count.id,
+      invoiceValue: Number(previousTotalsResult._sum.invoiceValue || 0),
+      invoiceQty: Number(previousTotalsResult._sum.invoiceQty || 0),
+      boxes: Number(previousTotalsResult._sum.boxes || 0)
+    }
 
     const response: InboundKPIData = {
       invoiceCount: currentTotals.invoiceCount,
@@ -91,6 +86,20 @@ export async function GET(request: NextRequest) {
 
     if (error instanceof Error && error.message.includes('Invalid date format')) {
       return NextResponse.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 })
+    }
+
+    // Check for database connection errors
+    if (error instanceof Error) {
+      const errorMessage = error.message.toLowerCase()
+      if (errorMessage.includes('can\'t reach database') || 
+          errorMessage.includes('connection') ||
+          errorMessage.includes('p1001') ||
+          errorMessage.includes('p1000')) {
+        return NextResponse.json({ 
+          error: 'Database connection failed. Please check your DATABASE_URL and ensure PostgreSQL is running.',
+          details: error.message
+        }, { status: 503 })
+      }
     }
 
     return NextResponse.json(

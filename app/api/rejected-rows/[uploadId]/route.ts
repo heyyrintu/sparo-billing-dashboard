@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import * as XLSX from 'xlsx'
-
-const prisma = new PrismaClient()
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { uploadId: string } }
+  { params }: { params: Promise<{ uploadId: string }> }
 ) {
   try {
     // Authentication removed - allow all requests
+    const { uploadId } = await params
 
     // Check if rejectedRow model exists (Prisma client might need regeneration)
     if (!(prisma as any).rejectedRow) {
@@ -21,7 +20,7 @@ export async function GET(
     // Get rejected rows for this upload
     const rejectedRows = await (prisma as any).rejectedRow.findMany({
       where: {
-        uploadLogId: params.uploadId
+        uploadLogId: uploadId
       },
       orderBy: {
         rowNumber: 'asc'
@@ -36,7 +35,7 @@ export async function GET(
 
     // Get upload log info
     const uploadLog = await prisma.uploadLog.findUnique({
-      where: { id: params.uploadId }
+      where: { id: uploadId }
     })
 
     if (!uploadLog) {
@@ -46,7 +45,7 @@ export async function GET(
     }
 
     // Prepare data for Excel
-    const excelData = rejectedRows.map(rejected => {
+    const excelData = rejectedRows.map((rejected: any) => {
       const rowData = JSON.parse(rejected.rowData)
       return {
         'Row Number': rejected.rowNumber,
@@ -76,7 +75,7 @@ export async function GET(
     })
 
     // Generate filename
-    const filename = `rejected-rows-${uploadLog.filename.replace('.xlsx', '')}-${params.uploadId.slice(0, 8)}.xlsx`
+    const filename = `rejected-rows-${uploadLog.filename.replace('.xlsx', '')}-${uploadId.slice(0, 8)}.xlsx`
 
     // Return Excel file
     return new NextResponse(excelBuffer, {

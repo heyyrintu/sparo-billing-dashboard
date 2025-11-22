@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { BaseCard } from '@/components/BaseCard'
 import { ChartContainer } from '@mui/x-charts/ChartContainer'
 import { BarPlot } from '@mui/x-charts/BarChart'
@@ -8,7 +8,7 @@ import { ChartsXAxis } from '@mui/x-charts/ChartsXAxis'
 import { ChartsYAxis } from '@mui/x-charts/ChartsYAxis'
 import { ChartsTooltip } from '@mui/x-charts/ChartsTooltip'
 import { BarLabel } from '@mui/x-charts/BarChart'
-import { formatIndianNumber } from '@/lib/utils'
+import { formatIndianNumber, formatDateLocal } from '@/lib/utils'
 import { TrendingUp } from 'lucide-react'
 
 interface BoxesBarChartProps {
@@ -29,35 +29,57 @@ export function BoxesBarChart({ dateRange, type }: BoxesBarChartProps) {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Memoize date strings to prevent unnecessary re-fetches
+  const dateKey = useMemo(() => ({
+    from: formatDateLocal(dateRange.from),
+    to: formatDateLocal(dateRange.to)
+  }), [dateRange.from, dateRange.to])
+
   useEffect(() => {
+    let cancelled = false
+    
     const fetchChartData = async () => {
       try {
         setLoading(true)
         const params = new URLSearchParams({
-          from: dateRange.from.toISOString().split('T')[0],
-          to: dateRange.to.toISOString().split('T')[0],
+          from: dateKey.from,
+          to: dateKey.to,
           view: viewMode,
           type
         })
 
         const response = await fetch(`/api/boxes-chart?${params}`)
+        if (cancelled) return
+        
         if (response.ok) {
           const data = await response.json()
-          setChartData(Array.isArray(data) ? data : [])
+          if (!cancelled) {
+            setChartData(Array.isArray(data) ? data : [])
+          }
         } else {
-          console.error('Failed to fetch boxes chart data:', response.statusText)
-          setChartData([])
+          if (!cancelled) {
+            console.error('Failed to fetch boxes chart data:', response.statusText)
+            setChartData([])
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch chart data:', error)
-        setChartData([])
+        if (!cancelled) {
+          console.error('Failed to fetch chart data:', error)
+          setChartData([])
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     fetchChartData()
-  }, [dateRange, viewMode, type])
+    
+    return () => {
+      cancelled = true
+    }
+  }, [dateKey.from, dateKey.to, viewMode, type])
 
   // Get color for each bar based on value (gradient effect)
   const getBarColor = (value: number, maxValue: number) => {
@@ -165,35 +187,27 @@ export function BoxesBarChart({ dateRange, type }: BoxesBarChartProps) {
                 data: chartData.map((item) => item.boxes),
                 label: 'Box Count',
                 type: 'bar',
-                valueFormatter: (value: number) => formatIndianNumber(value),
+                valueFormatter: (value: number | null) => value !== null ? formatIndianNumber(value) : '',
               },
             ]}
             yAxis={[
               {
                 id: 'y-axis',
                 label: 'Box Count',
-                valueFormatter: (value: number) => formatIndianNumber(value),
+                valueFormatter: (value: number | null) => value !== null ? formatIndianNumber(value) : '',
               },
             ]}
             height={400}
             margin={{ top: 50, right: 20, left: 60, bottom: 40 }}
             colors={barColors}
           >
-            <BarPlot borderRadius={10} />
+            <BarPlot 
+              borderRadius={10}
+              barLabel={(item: any) => formatIndianNumber(item.value ?? 0)}
+            />
             <ChartsXAxis />
             <ChartsYAxis />
             <ChartsTooltip />
-            <BarLabel
-              position="top"
-              style={{
-                fill: '#1f2937',
-                fontSize: '11px',
-                fontWeight: 700,
-                fontFamily: 'system-ui',
-                textShadow: '0 1px 2px rgba(255,255,255,0.8)',
-              }}
-              valueFormatter={(value: number) => formatIndianNumber(value)}
-            />
           </ChartContainer>
         )}
       </div>

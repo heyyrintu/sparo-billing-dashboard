@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { KPIParamsSchema } from '@/lib/parser/validation'
 import { calculateDelta, getPreviousPeriodDates } from '@/lib/utils'
 import { computeRevenueMarginal, computeRevenueFlat } from '@/lib/revenue/calculator'
 import type { KPIData } from '@/lib/types'
-
-const prisma = new PrismaClient()
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,8 +17,8 @@ export async function GET(request: NextRequest) {
     })
 
     const fromDate = new Date(params.from)
-    // Subtract 1 day from fromDate
-    fromDate.setDate(fromDate.getDate() - 1)
+    // Set fromDate to start of day to include all data on that date
+    fromDate.setHours(0, 0, 0, 0)
     const toDate = new Date(params.to)
     // Set toDate to end of day to include all data on that date
     toDate.setHours(23, 59, 59, 999)
@@ -117,6 +115,20 @@ export async function GET(request: NextRequest) {
     
     if (error instanceof Error && error.message.includes('Invalid date format')) {
       return NextResponse.json({ error: 'Invalid date format. Use YYYY-MM-DD' }, { status: 400 })
+    }
+
+    // Check for database connection errors
+    if (error instanceof Error) {
+      const errorMessage = error.message.toLowerCase()
+      if (errorMessage.includes('can\'t reach database') || 
+          errorMessage.includes('connection') ||
+          errorMessage.includes('p1001') ||
+          errorMessage.includes('p1000')) {
+        return NextResponse.json({ 
+          error: 'Database connection failed. Please check your DATABASE_URL and ensure PostgreSQL is running.',
+          details: error.message
+        }, { status: 503 })
+      }
     }
 
     return NextResponse.json({

@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Badge } from '@/lib/ui/badge'
-import { formatIndianCurrency, formatIndianNumber } from '@/lib/utils'
+import { formatIndianCurrency, formatIndianNumber, formatDateLocal } from '@/lib/utils'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { BaseCard } from '@/components/BaseCard'
 import type { KPIData, InboundKPIData } from '@/lib/types'
@@ -17,31 +17,51 @@ export function KPICards({ dateRange, mode, type }: KPICardsProps) {
   const [kpiData, setKpiData] = useState<KPIData | InboundKPIData | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Memoize date strings to prevent unnecessary re-fetches
+  const dateKey = useMemo(() => ({
+    from: formatDateLocal(dateRange.from),
+    to: formatDateLocal(dateRange.to)
+  }), [dateRange.from, dateRange.to])
+
   useEffect(() => {
+    let cancelled = false
+    
     const fetchKPIData = async () => {
       try {
         setLoading(true)
         const params = new URLSearchParams({
-          from: dateRange.from.toISOString().split('T')[0],
-          to: dateRange.to.toISOString().split('T')[0],
+          from: dateKey.from,
+          to: dateKey.to,
           mode
         })
 
         const endpoint = type === 'inbound' ? '/api/inbound-kpi' : '/api/kpi'
         const response = await fetch(`${endpoint}?${params}`)
+        if (cancelled) return
+        
         if (response.ok) {
           const data = await response.json()
-          setKpiData(data)
+          if (!cancelled) {
+            setKpiData(data)
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch KPI data:', error)
+        if (!cancelled) {
+          console.error('Failed to fetch KPI data:', error)
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     fetchKPIData()
-  }, [dateRange, mode, type])
+    
+    return () => {
+      cancelled = true
+    }
+  }, [dateKey.from, dateKey.to, mode, type])
 
   if (loading) {
     return (

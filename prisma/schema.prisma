@@ -35,6 +35,8 @@ model OutboundFact {
   sourceChecksum  String
   createdAt       DateTime  @default(now())
 
+  @@index([invoiceDate])
+  @@index([sourceChecksum])
   @@map("outbound_fact")
 }
 
@@ -52,6 +54,8 @@ model InboundFact {
   sourceChecksum String
   createdAt      DateTime @default(now())
 
+  @@index([receivedDate])
+  @@index([sourceChecksum])
   @@map("inbound_fact")
 }
 
@@ -65,6 +69,7 @@ model DailySummary {
   inboundBoxes   Decimal
   createdAt      DateTime @default(now())
 
+  @@index([day])
   @@map("daily_summary")
 }
 

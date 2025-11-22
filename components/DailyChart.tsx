@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { BaseCard } from '@/components/BaseCard'
 import { LineChart } from '@mui/x-charts/LineChart'
-import { formatIndianCurrency, formatIndianNumber } from '@/lib/utils'
+import { formatIndianCurrency, formatIndianNumber, formatDateLocal } from '@/lib/utils'
 import type { DailyData } from '@/lib/types'
 
 interface DailyChartProps {
@@ -16,32 +16,52 @@ export function DailyChart({ dateRange, metric, mode }: DailyChartProps) {
   const [chartData, setChartData] = useState<DailyData[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Memoize date strings to prevent unnecessary re-fetches
+  const dateKey = useMemo(() => ({
+    from: formatDateLocal(dateRange.from),
+    to: formatDateLocal(dateRange.to)
+  }), [dateRange.from, dateRange.to])
+
   useEffect(() => {
+    let cancelled = false
+    
     const fetchChartData = async () => {
       try {
         setLoading(true)
         const params = new URLSearchParams({
-          from: dateRange.from.toISOString().split('T')[0],
-          to: dateRange.to.toISOString().split('T')[0],
+          from: dateKey.from,
+          to: dateKey.to,
           metric,
           mode
         })
 
         const response = await fetch(`/api/daily?${params}`)
+        if (cancelled) return
+        
         if (response.ok) {
           const data = await response.json()
-          setChartData(Array.isArray(data) ? data : [])
+          if (!cancelled) {
+            setChartData(Array.isArray(data) ? data : [])
+          }
         }
       } catch (error) {
-        console.error('Failed to fetch chart data:', error)
-        setChartData([])
+        if (!cancelled) {
+          console.error('Failed to fetch chart data:', error)
+          setChartData([])
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     fetchChartData()
-  }, [dateRange, metric, mode])
+    
+    return () => {
+      cancelled = true
+    }
+  }, [dateKey.from, dateKey.to, metric, mode])
 
   if (loading) {
     return (
@@ -102,19 +122,21 @@ export function DailyChart({ dateRange, metric, mode }: DailyChartProps) {
                 id: metric === 'gross' ? 'grossSale' : 'revenue',
                 data: chartData.map((item) => (metric === 'gross' ? item.grossSale : item.revenue)),
                 label: metric === 'gross' ? 'Gross Sale' : 'Revenue',
-                valueFormatter: (value: number) => {
+                valueFormatter: (value: number | null) => {
+                  if (value === null) return ''
                   if (metric === 'gross' || metric === 'revenue') {
                     return formatIndianCurrency(value)
                   }
                   return formatIndianNumber(value)
                 },
-                curve: 'monotone',
+                curve: 'monotoneX',
               },
             ]}
             yAxis={[
               {
                 id: 'y-axis',
-                valueFormatter: (value: number) => {
+                valueFormatter: (value: number | null) => {
+                  if (value === null) return ''
                   if (metric === 'gross' || metric === 'revenue') {
                     return `₹${(value / 100000).toFixed(0)}L`
                   }

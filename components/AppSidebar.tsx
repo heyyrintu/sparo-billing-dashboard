@@ -3,13 +3,13 @@
 import React, { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar, SidebarBody, SidebarLink } from '@/components/ui/sidebar'
-import { IconPackage, IconTrendingUp, IconChartBar, IconUpload, IconLayoutDashboard } from '@tabler/icons-react'
+import { IconPackage, IconTrendingUp, IconChartBar, IconUpload, IconLayoutDashboard, IconSettings, IconFileInvoice } from '@tabler/icons-react'
 import { motion } from 'motion/react'
 import { cn } from '@/lib/utils'
 
 interface AppSidebarProps {
-  activeTab?: 'inbound' | 'outward' | 'revenue'
-  onTabChange?: (tab: 'inbound' | 'outward' | 'revenue') => void
+  activeTab?: 'inbound' | 'outward' | 'revenue' | 'operations'
+  onTabChange?: (tab: 'inbound' | 'outward' | 'revenue' | 'operations') => void
 }
 
 export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
@@ -17,6 +17,8 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
   const router = useRouter()
   const isUploadPage = pathname === '/upload'
   const isDashboardPage = pathname === '/'
+  const isOperationsPage = pathname === '/operations'
+  const isBillingPage = pathname === '/billing'
   
   const dashboardLink = {
     label: 'Dashboard',
@@ -63,7 +65,29 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
       ),
       tab: 'revenue' as const,
     },
+    {
+      label: 'Operations',
+      href: '/operations',
+      icon: (
+        <IconSettings className={cn(
+          "h-5 w-5 shrink-0",
+          isOperationsPage ? 'text-white' : 'text-neutral-700 dark:text-neutral-200'
+        )} />
+      ),
+      tab: 'operations' as const,
+    },
   ]
+
+  const billingLink = {
+    label: 'Billing',
+    href: '/billing',
+    icon: (
+      <IconFileInvoice className={cn(
+        "h-5 w-5 shrink-0",
+        isBillingPage ? 'text-white' : 'text-neutral-700 dark:text-neutral-200'
+      )} />
+    ),
+  }
 
   const uploadLink = {
     label: 'Upload',
@@ -79,7 +103,12 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
   const [open, setOpen] = useState(false)
 
   const handleLinkClick = (link: typeof links[0]) => {
-    if (link.tab && onTabChange) {
+    if (link.tab === 'operations') {
+      router.push('/operations')
+      if (onTabChange) {
+        onTabChange('operations')
+      }
+    } else if (link.tab && onTabChange) {
       onTabChange(link.tab)
       if (pathname !== '/') {
         router.push('/')
@@ -99,6 +128,10 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
     }
   }
 
+  const handleBillingClick = () => {
+    router.push('/billing')
+  }
+
   return (
     <Sidebar open={open} setOpen={setOpen}>
       <SidebarBody className="justify-between gap-10">
@@ -112,7 +145,7 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
                 onClick={() => handleLinkClick(link)}
                 className={cn(
                   "rounded-lg px-3 transition-colors",
-                  activeTab === link.tab 
+                  (activeTab === link.tab || (link.tab === 'operations' && isOperationsPage))
                     ? "bg-gradient-to-r from-[#E01E1F] to-[#FEA519] text-white font-bold" 
                     : "hover:bg-gray-200 dark:hover:bg-neutral-700"
                 )}
@@ -121,6 +154,16 @@ export function AppSidebar({ activeTab, onTabChange }: AppSidebarProps) {
           </div>
         </div>
         <div className="mt-auto flex flex-col gap-2">
+          <SidebarLink
+            link={billingLink}
+            onClick={handleBillingClick}
+            className={cn(
+              "rounded-lg px-3 transition-colors",
+              isBillingPage
+                ? "bg-gradient-to-r from-[#E01E1F] to-[#FEA519] text-white font-bold" 
+                : "hover:bg-gray-200 dark:hover:bg-neutral-700"
+            )}
+          />
           <SidebarLink
             link={dashboardLink}
             onClick={handleDashboardClick}

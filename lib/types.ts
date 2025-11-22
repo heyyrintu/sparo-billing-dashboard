@@ -48,3 +48,24 @@ export interface UploadLogEntry {
   message?: string
   createdAt: Date
 }
+
+export interface AdditionalActivity {
+  id: string
+  name: string
+  qty: number
+  rate: number
+  total: number
+}
+
+export interface SlabBreakdown {
+  range: string
+  rate: number
+  amount: number
+}
+
+export interface BillingData {
+  grossSale: number
+  minGuarantee: number
+  slabBreakdown: SlabBreakdown[]
+  totalRevenue: number
+}

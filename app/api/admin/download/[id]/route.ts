@@ -1,19 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '@/lib/prisma'
 import { readFile } from 'fs/promises'
 import { join } from 'path'
 
-const prisma = new PrismaClient()
-
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Authentication removed - allow all requests
+    const { id } = await params
 
     const upload = await prisma.uploadLog.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!upload) {
